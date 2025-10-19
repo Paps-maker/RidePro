@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>RidePro — Customer (Live Vehicles)</title>
+
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+   <link rel="icon" type="image/png" href="img/ridepro.png">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <style>
+     :root{--bg:#071226;--card:#0f1720;--accent:#c79a2f;--muted:#9aa6b2}
+    body{background:linear-gradient(180deg,#071226,#081826);color:#e7eef6;font-family:Inter,system-ui,Arial;padding:18px}
+    .brand{color:var(--accent);font-weight:700}
+    .panel{background:rgba(255,255,255,0.03);border-radius:10px;padding:16px}
+    .driver-avatar{width:44px;height:44px;border-radius:50%;object-fit:cover;border:2px solid rgba(255,255,255,0.06)}
+    .btn-gold{background:var(--accent);border-color:var(--accent);color:#081019}
+    .small-muted{color:var(--muted)}
+    #map{height:360px;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,0.03)}
+    @media (max-width:767px){#map{height:220px}}
+    .vehicle-img{width:84px;height:56px;border-radius:6px;object-fit:cover}
+    .status-green{background:#2ecc71;color:#04210b;padding:4px 8px;border-radius:6px;font-weight:700}
+    .status-orange{background:#f39c12;color:#2d1700;padding:4px 8px;border-radius:6px;font-weight:700}
+    .status-gray{background:#95a5a6;color:#07121a;padding:4px 8px;border-radius:6px;font-weight:700}
+    
+  </style>
+  
+</head>
+<body>
+  <div class="container">
+    <header class="d-flex align-items-center justify-content-between mb-3">
+      <div>
+        <h3 class="mb-0 brand">RidePro</h3>
+        <div class="small-muted">Fast, safe rides </div>
+      </div>
+      <div class="d-flex align-items-center gap-2">
+        <span id="userEmail" class="small-muted"></span>
+        <button id="btnOpenAuth" class="btn-outline-light btn btn-sm d-none">Sign In</button>
+      </div>
+    </header>
+
+    <div class="row g-3">
+  <!-- Left: Book a Ride + Map + Recent Requests -->
+  <div class="position-relative col-lg-7">
+    <div class="mb-3 panel">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <div>
+          <h5 class="mb-0">Book a Ride</h5>
+        </div>
+        <div>
+          <select id="vehicleType" class="form-select-sm form-select">
+            <option value="car" selected>Car — Standard (1-2 People)</option>
+            <option value="premium">Car — Premium (4 People)</option>
+            <option value="bike">Motorbike</option>
+            <option value="van">Van Group of 6-8</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- PICKUP / DESTINATION + BUTTONS -->
+      <div class="d-flex flex-wrap align-items-start gap-2 mb-3"
+           style="background: rgba(0,0,0,0.05); padding:10px; border-radius:8px;">
+        <div style="flex:1 1 200px; display:flex;flex-direction:column;">
+          <label class="small-muted" style="font-size:12px;margin:0 0 4px 0">Pickup</label>
+          <input id="pickup" class="form-control form-control-sm" placeholder="Enter pickup location"/>
+        </div>
+        <div style="flex:1 1 200px; display:flex;flex-direction:column;">
+          <label class="small-muted" style="font-size:12px;margin:0 0 4px 0">Destination</label>
+          <input id="destination" class="form-control form-control-sm" placeholder="Enter destination"/>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px; flex-shrink:0;">
+          <button id="btnUseLocation" class="btn-outline-secondary btn btn-sm" title="Use my location">Use my location</button>
+          <div style="display:flex;gap:8px; flex-wrap:wrap; margin-top:4px;">
+            <button id="btnEstimate" class="btn-outline-light btn btn-sm">Estimate</button>
+           <button id="btnProceedPayment" class="btn btn-gold btn-sm">Request a ride</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- MAP -->
+      <div id="map" class="mb-3" style="height:280px; border-radius:8px;"></div>
+
+      <!-- ESTIMATES: Distance, Duration, Fare -->
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div>
+          <div class="small-muted">Distance</div>
+          <div id="estDistance" class="fw-bold">—</div>
+        </div>
+        <div>
+          <div class="small-muted">Duration</div>
+          <div id="estDuration" class="fw-bold">—</div>
+        </div>
+        <div>
+          <div class="small-muted">Fare</div>
+          <div id="estFare" class="h4 brand">KSh 0</div>
+        </div>
+      </div>
+
+      <hr/>
+
+      <!-- CUSTOMER DETAILS -->
+      <div class="mt-3 row g-2">
+        <div class="col-md-4">
+          <label class="form-label small-muted">Customer name (optional)</label>
+          <input id="custName" class="form-control" placeholder="Full name"/>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small-muted">Phone for M-Pesa (07XX...)</label>
+          <input id="custPhone" class="form-control" placeholder="e.g., 07XXXXXXXX"/>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label small-muted">Promo / Loyalty code</label>
+          <input id="promo" class="form-control" placeholder="Optional"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recent Requests -->
+    <div class="panel">
+      <h6 class="mb-2">Recent Requests</h6>
+      <div id="requestsList" class="list-group"></div>
+    </div>
+  </div>
+
+  <!-- Right: Available Vehicles + Loyalty -->
+  <div class="col-lg-5">
+    <div class="mb-3 panel">
+      <h6>Available Vehicles</h6>
+      <div class="mt-2" id="vehiclesGrid"></div>
+    </div>
+
+    <div class="panel">
+      <h6>Loyalty</h6>
+      <div id="loyaltyInfo" class="small-muted">Earn points after ride completion. Points reduce fare on next rides.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Receipt Modal -->
+<div class="modal fade" id="receiptModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="p-3 modal-content">
+      <div id="receiptBody"></div>
+      <div class="mt-2 text-end">
+        <button id="printReceipt" class="btn-outline-secondary btn btn-sm">Print</button>
+        <button id="downloadReceipt" class="btn-outline-primary btn btn-sm">Download PDF</button>
+      </div>
+    </div>
+  </div>
+</div>
+  <!-- Receipt modal -->
+  <div class="modal fade" id="receiptModal" tabindex="-1"><div class="modal-dialog modal-md"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Receipt</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="receiptBody"></div><div class="modal-footer"><button id="printReceipt" class="btn-outline-light btn btn-sm">Print</button><button id="downloadReceipt" class="btn btn-gold btn btn-sm">Download PDF</button></div></div></div></div>
+
+  <!-- Bootstrap -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+ <!-- ✅ Google Maps: fully configured with your API key and Map ID -->
+<script async defer 
+  src="https://maps.googleapis.com/maps/api/js?key=AIzaSyAAOQyp4Y7DmN2SFGR6RVFHcn6gzY-vTdw&map_ids=be09314611473507241a937c&libraries=places&callback=initMap">
+</script>
+
+ 
+
+ <script type="module">
+  // ---------------- Firebase imports ----------------
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+  import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+  import {
+    getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, getDocs, query, where, orderBy
+  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+  import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+  // ---------------- CONFIG ----------------
+  const firebaseConfig = {
+    apiKey: "AIzaSyC0avd1EPsYGw9paeuECB8dd781ZPQBAMI",
+    authDomain: "transc-eec4c.firebaseapp.com",
+    projectId: "transc-eec4c",
+    storageBucket: "transc-eec4c.firebasestorage.app",
+    messagingSenderId: "3676403115",
+    appId: "1:3676403115:web:4da31c41de4b990b614eee",
+    measurementId: "G-R29NT412SJ"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  // ---------------- UI refs ----------------
+  const pickupInput = document.getElementById('pickup');
+  const destInput = document.getElementById('destination');
+  const btnEstimate = document.getElementById('btnEstimate');
+  const btnProceedPayment = document.getElementById('btnProceedPayment');
+  const estDistance = document.getElementById('estDistance');
+  const estDuration = document.getElementById('estDuration');
+  const estFare = document.getElementById('estFare');
+  const vehicleType = document.getElementById('vehicleType');
+  const requestsList = document.getElementById('requestsList');
+  const custName = document.getElementById('custName');
+  const custPhone = document.getElementById('custPhone');
+  const vehiclesGrid = document.getElementById('vehiclesGrid');
+  const btnUseLocation = document.getElementById('btnUseLocation');
+
+  // ---------------- Browser ID ----------------
+  const browserId = localStorage.getItem('browserId') || crypto.randomUUID();
+  localStorage.setItem('browserId', browserId);
+
+  // ---------------- FARE RATES ----------------
+  const FARE_RATES = {
+    car: { base: 120, perKm: 32, perMin: 6 },
+    premium: { base: 200, perKm: 55, perMin: 8 },
+    bike: { base: 17, perKm: 7, perMin: 4 },
+    van: { base: 200, perKm: 35, perMin: 7 },
+  };
+  function calcFare(km, mins, type) {
+    const rate = FARE_RATES[type] || FARE_RATES.car;
+    return Math.round(rate.base + km * rate.perKm + mins * rate.perMin);
+  }
+
+  // ---------------- Google Maps variables ----------------
+  let map, directionsService, directionsRenderer;
+  let pickupAutocomplete, destAutocomplete;
+  let pickupPlace = null, destPlace = null;
+  let userMarker = null;
+  let vehicleMarkers = {};
+
+  // ---------------- Init Map ----------------
+  function initMap() {
+    map = new google.maps.Map(document.getElementById('map'), {
+      center: { lat: -1.286389, lng: 36.817223 },
+      zoom: 13,
+      mapId: "be09314611473507241a937c",
+      mapTypeControl: false
+    });
+
+    directionsService = new google.maps.DirectionsService();
+    directionsRenderer = new google.maps.DirectionsRenderer({ map, suppressMarkers: true });
+
+    pickupAutocomplete = new google.maps.places.Autocomplete(pickupInput);
+    destAutocomplete = new google.maps.places.Autocomplete(destInput);
+
+    pickupAutocomplete.addListener('place_changed', () => {
+      pickupPlace = pickupAutocomplete.getPlace();
+      if (pickupPlace?.geometry?.location) map.panTo(pickupPlace.geometry.location);
+    });
+    destAutocomplete.addListener('place_changed', () => {
+      destPlace = destAutocomplete.getPlace();
+      if (destPlace?.geometry?.location) map.panTo(destPlace.geometry.location);
+    });
+
+    // Use my location
+    btnUseLocation.onclick = () => {
+      if (!navigator.geolocation) return alert('Geolocation not supported.');
+      navigator.geolocation.getCurrentPosition(pos => {
+        const loc = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        map.panTo(loc);
+        map.setZoom(15);
+        setUserMarker(loc);
+        const geocoder = new google.maps.Geocoder();
+        geocoder.geocode({ location: loc }, (results, status) => {
+          if (status === 'OK' && results?.[0]) {
+            pickupInput.value = results[0].formatted_address;
+            pickupPlace = { geometry: { location: new google.maps.LatLng(loc.lat, loc.lng) }, formatted_address: results[0].formatted_address };
+          }
+        });
+      }, err => alert('Location error: ' + err.message));
+    };
+
+    btnEstimate.onclick = estimateRoute;
+  }
+
+  function setUserMarker(pos) {
+    if (!userMarker) {
+      userMarker = new google.maps.Marker({ position: pos, map, title: 'You are here', icon: { path: google.maps.SymbolPath.CIRCLE, scale: 7 } });
+    } else userMarker.setPosition(pos);
+  }
+
+  // ---------------- Estimate Route ----------------
+  function estimateRoute() {
+    const a = pickupInput.value.trim();
+    const b = destInput.value.trim();
+    if (!a || !b) return alert('Enter both pickup and destination.');
+
+    estDistance.textContent = 'Calculating...';
+    estDuration.textContent = 'Calculating...';
+    estFare.textContent = 'Calculating...';
+
+    const req = { origin: a, destination: b, travelMode: google.maps.TravelMode.DRIVING };
+    directionsService.route(req, (result, status) => {
+      if (status !== 'OK') return alert('Route failed: ' + status);
+      directionsRenderer.setDirections(result);
+      const leg = result.routes[0].legs[0];
+      const km = (leg.distance.value || 0) / 1000;
+      const mins = Math.ceil((leg.duration.value || 0) / 60);
+      const type = vehicleType.value || 'car';
+      const fare = calcFare(km, mins, type);
+      estDistance.textContent = `${km.toFixed(1)} km`;
+      estDuration.textContent = `${mins} min`;
+      estFare.textContent = `KSh ${fare.toLocaleString()}`;
+      window._estimate = { pickupText: a, destText: b, km, mins, fare, type };
+    });
+  }
+
+  // ---------------- VEHICLES (Realtime) ----------------
+   onSnapshot(collection(db, 'vehicles'), snap => {
+    const list = []; snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+    renderVehiclesGrid(list); plotVehicleMarkers(list);
+  });
+
+  function renderVehiclesGrid(list){
+    vehiclesGrid.innerHTML = '';
+    list.filter(v => ['available','busy','offline'].includes(v.status||'available')).forEach(v=>{
+      const col = document.createElement('div'); col.className='mb-2';
+      const img = v.image?`<img src="${escapeHtml(v.image)}" class="me-2 vehicle-img">`:'';
+      const statusTag = v.status==='available'?'<span class="status-green">Available</span>':
+                        v.status==='busy'?'<span class="status-orange">Busy</span>':'<span class="status-gray">Offline</span>';
+      col.innerHTML = `<div class="d-flex align-items-center justify-content-between p-2" style="background:rgba(255,255,255,0.02);border-radius:8px">
+        <div class="d-flex align-items-center">${img}<div><div class="fw-bold">${escapeHtml(v.name||v.type||'Vehicle')}</div><div class="small-muted">${escapeHtml(v.type||'')}</div></div></div>
+        <div class="text-end">${statusTag}<div class="mt-1 muted small">${(typeof v.latitude==='number'&&typeof v.longitude==='number')?'Live':'No GPS'}</div></div>
+      </div>`;
+      vehiclesGrid.appendChild(col);
+    });
+  }
+
+  function plotVehicleMarkers(list){
+    const present = new Set(list.map(l=>l.id));
+    for(const id of Object.keys(vehicleMarkers)){ if(!present.has(id)) { map.removeLayer(vehicleMarkers[id]); delete vehicleMarkers[id]; } }
+    list.forEach(v=>{
+      if(typeof v.latitude!=='number'||typeof v.longitude!=='number') return;
+      const pos = [v.latitude, v.longitude];
+      if(vehicleMarkers[v.id]) vehicleMarkers[v.id].setLatLng(pos);
+      else vehicleMarkers[v.id] = L.marker(pos).addTo(map).bindPopup(`<strong>${escapeHtml(v.name||v.type)}</strong><br>${escapeHtml(v.type||'')}<br>${escapeHtml(v.status||'')}`);
+    });
+  }
+
+  // ---------------- REQUEST RIDE (no payment) ----------------
+  btnProceedPayment.onclick = async () => {
+    if (!window._estimate) return alert('Get estimate first.');
+    const phone = custPhone.value.trim();
+    const name = custName.value.trim() || 'Guest';
+    if (!/^07\d{8}$/.test(phone)) return alert('Enter valid Kenyan phone.');
+
+    const ride = {
+      pickup: window._estimate.pickupText,
+      destination: window._estimate.destText,
+      estimate: window._estimate,
+      requestedAt: new Date().toISOString(),
+      status: 'requested',
+      customerName: name,
+      customerPhone: phone,
+      browserId
+    };
+
+    await addDoc(collection(db, 'rides'), ride);
+    alert('Ride requested successfully!');
+  };
+
+  // ---------------- SHOW CUSTOMER’S OWN RIDES ----------------
+  onSnapshot(collection(db, 'rides'), snap => {
+    const myRides = [];
+    snap.forEach(docSnap => {
+      const r = { id: docSnap.id, ...docSnap.data() };
+      if (r.browserId === browserId) myRides.push(r);
+    });
+    myRides.sort((a, b) => new Date(b.requestedAt) - new Date(a.requestedAt));
+    renderRequests(myRides);
+  });
+
+  function renderRequests(list) {
+    requestsList.innerHTML = '';
+    list.forEach(r => {
+      const el = document.createElement('div');
+      el.className = 'list-group-item bg-transparent text-light border rounded mb-2 p-2';
+      el.innerHTML = `
+        <div><b>${escapeHtml(r.pickup)}</b> → <b>${escapeHtml(r.destination)}</b></div>
+        <div class="small">Fare: KSh ${Number(r.estimate?.fare || 0).toLocaleString()}</div>
+        <div class="badge ${badgeForStatus(r.status)}">${r.status}</div>
+      `;
+      requestsList.appendChild(el);
+    });
+  }
+
+  function badgeForStatus(status) {
+    return status === 'requested' ? 'bg-warning text-dark' :
+           status === 'accepted' ? 'bg-info' :
+           status === 'ongoing' ? 'bg-primary' :
+           status === 'completed' ? 'bg-success' : 'bg-secondary';
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, m => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m]));
+  }
+
+  // Initialize map after load
+  if (typeof google !== 'undefined' && google.maps) initMap();
+  else {
+    const check = setInterval(() => {
+      if (typeof google !== 'undefined' && google.maps) {
+        clearInterval(check);
+        initMap();
+      }
+    }, 300);
+  }
+</script>
+
+</body>
+</html>
