@@ -332,26 +332,119 @@
   }
 
   // ---------------- REQUEST RIDE (no payment) ----------------
-  btnProceedPayment.onclick = async () => {
-    if (!window._estimate) return alert('Get estimate first.');
-    const phone = custPhone.value.trim();
-    const name = custName.value.trim() || 'Guest';
-    if (!/^07\d{8}$/.test(phone)) return alert('Enter valid Kenyan phone.');
+btnProceedPayment.onclick = async () => {
+  if (!window._estimate) return alert('Get estimate first.');
+  const phone = custPhone.value.trim();
+  const name = custName.value.trim() || 'Guest';
+  if (!/^07\d{8}$/.test(phone)) return alert('Enter valid Kenyan phone.');
 
-    const ride = {
-      pickup: window._estimate.pickupText,
-      destination: window._estimate.destText,
-      estimate: window._estimate,
-      requestedAt: new Date().toISOString(),
-      status: 'requested',
-      customerName: name,
-      customerPhone: phone,
-      browserId
-    };
+  // --- Select driver ---
+  const selectedDriver = await selectDriver();
+  if (!selectedDriver) {
+    if (!confirm('No driver selected. Continue anyway?')) return;
+  }
 
-    await addDoc(collection(db, 'rides'), ride);
-    alert('Ride requested successfully!');
+  const ride = {
+    pickup: window._estimate.pickupText,
+    destination: window._estimate.destText,
+    estimate: window._estimate,
+    requestedAt: new Date().toISOString(),
+    status: 'requested',
+    customerName: name,
+    customerPhone: phone,
+    browserId,
+    driverId: selectedDriver?.id || null,
+    driverName: selectedDriver?.name || null
   };
+
+  await addDoc(collection(db, 'rides'), ride);
+  alert('Ride requested successfully!');
+};
+
+// --- Driver selection modal ---
+async function selectDriver() {
+  const drivers = await getAvailableDrivers();
+  if (drivers.length === 0) {
+    alert('No available drivers at the moment.');
+    return null;
+  }
+
+  const sel = document.createElement('select');
+  sel.className = 'form-select mb-2';
+  sel.innerHTML =
+    `<option value="">Select a driver (optional)</option>` +
+    drivers.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join('');
+
+  const container = document.createElement('div');
+  container.appendChild(sel);
+
+  const res = await new Promise(resolve => {
+    const okBtn = document.createElement('button');
+    okBtn.className = 'btn btn-primary btn-sm';
+    okBtn.textContent = 'Confirm';
+    container.appendChild(okBtn);
+
+    const modalDiv = document.createElement('div');
+    modalDiv.className = 'modal fade';
+    modalDiv.tabIndex = -1;
+    modalDiv.innerHTML = `<div class="modal-dialog modal-dialog-centered"><div class="p-3 modal-content"></div></div>`;
+    modalDiv.querySelector('.modal-content').appendChild(container);
+    document.body.appendChild(modalDiv);
+    const modal = new bootstrap.Modal(modalDiv);
+    modal.show();
+
+    okBtn.onclick = () => {
+      const selectedId = sel.value;
+      const selectedName = drivers.find(d => d.id === selectedId)?.name || null;
+      resolve({ id: selectedId, name: selectedName });
+      modal.hide();
+      modalDiv.remove();
+    };
+  });
+
+  return res; // {id, name} or null
+}
+
+// --- Fetch available drivers ---
+async function getAvailableDrivers() {
+  const snap = await getDocs(query(collection(db, 'vehicles'), where('status', '==', 'available')));
+  return snap.docs.map(d => ({
+    id: d.id,
+    name: d.data().name || d.data().driverName || d.data().type || 'Driver'
+  }));
+}
+
+// --- Display user's recent ride requests ---
+function loadUserRequests() {
+  const ridesTable = document.getElementById('recentRequests');
+  if (!ridesTable) return;
+
+  const q = query(
+    collection(db, 'rides'),
+    where('browserId', '==', browserId),
+    orderBy('requestedAt', 'desc')
+  );
+
+  onSnapshot(q, snapshot => {
+    ridesTable.innerHTML = '';
+    snapshot.forEach(docSnap => {
+      const r = docSnap.data();
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td>${r.pickup}</td>
+        <td>${r.destination}</td>
+        <td>${r.driverName || '—'}</td>
+        <td>${r.status}</td>
+        <td>${new Date(r.requestedAt).toLocaleString()}</td>
+      `;
+      ridesTable.appendChild(row);
+    });
+  });
+}
+
+// --- Call function on load ---
+loadUserRequests();
+
 
   // ---------------- SHOW CUSTOMER’S OWN RIDES ----------------
   onSnapshot(collection(db, 'rides'), snap => {
