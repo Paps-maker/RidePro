@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -332,7 +333,7 @@
     });
   }
 
-  // ---------------- REQUEST RIDE (no payment) ----------------
+ // ---------------- REQUEST RIDE (no payment) ----------------
 btnProceedPayment.onclick = async () => {
   if (!window._estimate) return alert('Get estimate first.');
   const phone = custPhone.value.trim();
@@ -360,6 +361,39 @@ btnProceedPayment.onclick = async () => {
 
   await addDoc(collection(db, 'rides'), ride);
   alert('Ride requested successfully!');
+};
+
+// ---------------- REQUEST VIA WHATSAPP ----------------
+btnRequestWhatsapp.onclick = async () => {
+  if (!window._estimate) return alert('Get estimate first.');
+  const phone = custPhone.value.trim();
+  const name = custName.value.trim() || 'Guest';
+  if (!/^07\d{8}$/.test(phone)) return alert('Enter valid Kenyan phone.');
+
+  // --- Select driver ---
+  const selectedDriver = await selectDriver();
+  if (!selectedDriver) {
+    if (!confirm('No driver selected. Continue anyway?')) return;
+  }
+
+  const pickup = window._estimate.pickupText;
+  const destination = window._estimate.destText;
+  const distance = window._estimate.distanceText;
+  const fare = window._estimate.fareText || window._estimate.amount || 'N/A';
+  const driverName = selectedDriver?.name || 'Not assigned';
+
+  // --- Replace with your WhatsApp number (with country code) ---
+  const adminNumber = '254790427109';
+
+  const message = encodeURIComponent(
+    `🚖 *New Ride Request via RidePro*\n\n` +
+    `👤 Name: ${name}\n📞 Phone: ${phone}\n` +
+    `📍 Pickup: ${pickup}\n🏁 Destination: ${destination}\n` +
+    `📏 Distance: ${distance}\n💰 Estimated Fare: ${fare}\n🚗 Driver: ${driverName}\n\n` +
+    `🕒 Requested At: ${new Date().toLocaleString()}`
+  );
+
+  window.open(`https://wa.me/${adminNumber}?text=${message}`, '_blank');
 };
 
 // --- Driver selection modal ---
@@ -414,38 +448,6 @@ async function getAvailableDrivers() {
     name: d.data().name || d.data().driverName || d.data().type || 'Driver'
   }));
 }
-
-// --- Display user's recent ride requests ---
-function loadUserRequests() {
-  const ridesTable = document.getElementById('recentRequests');
-  if (!ridesTable) return;
-
-  const q = query(
-    collection(db, 'rides'),
-    where('browserId', '==', browserId),
-    orderBy('requestedAt', 'desc')
-  );
-
-  onSnapshot(q, snapshot => {
-    ridesTable.innerHTML = '';
-    snapshot.forEach(docSnap => {
-      const r = docSnap.data();
-      const row = document.createElement('tr');
-      row.innerHTML = `
-        <td>${r.pickup}</td>
-        <td>${r.destination}</td>
-        <td>${r.driverName || '—'}</td>
-        <td>${r.status}</td>
-        <td>${new Date(r.requestedAt).toLocaleString()}</td>
-      `;
-      ridesTable.appendChild(row);
-    });
-  });
-}
-
-// --- Call function on load ---
-loadUserRequests();
-
 
   // ---------------- SHOW CUSTOMER’S OWN RIDES ----------------
   onSnapshot(collection(db, 'rides'), snap => {
