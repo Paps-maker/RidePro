@@ -432,6 +432,26 @@
     height: calc(100vh - 200px); /* dynamic height for small screens */
   }
 }
+/* Fix overlapping Book button with modal */
+.booking-fab {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  z-index: 1040; /* below modal */
+}
+
+/* Slight blur behind for polish */
+.booking-fab button {
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  backdrop-filter: blur(4px);
+}
+
+/* Hide or lower button when modal opens */
+.modal-backdrop.show ~ .booking-fab {
+  z-index: 0;
+  opacity: 0.5;
+  pointer-events: none;
+}
 
 </style>
 
@@ -564,11 +584,12 @@
     <div id="map"></div>
 
     <!-- BOOK A RIDE BUTTON -->
-    <div class="position-absolute" style="bottom:20px;left:20px;z-index:9999;">
-      <button class="shadow rounded-pill btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#bookingModal">
-        🚗 Book a Ride
-      </button>
-    </div>
+    <div class="booking-fab">
+  <button class="shadow rounded-pill btn btn-success btn-lg" data-bs-toggle="modal" data-bs-target="#bookingModal">
+    🚗 Book a Ride
+  </button>
+</div>
+
   </div>
 
   <!-- Right: panels -->
