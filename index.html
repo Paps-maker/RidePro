@@ -333,6 +333,36 @@
     });
   }
 
+// ---------------- REQUEST RIDE (no payment) ----------------
+btnProceedPayment.onclick = async () => {
+  if (!window._estimate) return alert('Get estimate first.');
+  const phone = custPhone.value.trim();
+  const name = custName.value.trim() || 'Guest';
+  if (!/^07\d{8}$/.test(phone)) return alert('Enter valid Kenyan phone.');
+
+  // --- Select driver ---
+  const selectedDriver = await selectDriver();
+  if (!selectedDriver) {
+    if (!confirm('No driver selected. Continue anyway?')) return;
+  }
+
+  const ride = {
+    pickup: window._estimate.pickupText,
+    destination: window._estimate.destText,
+    estimate: window._estimate,
+    requestedAt: new Date().toISOString(),
+    status: 'requested',
+    customerName: name,
+    customerPhone: phone,
+    browserId,
+    driverId: selectedDriver?.id || null,
+    driverName: selectedDriver?.name || null
+  };
+
+  await addDoc(collection(db, 'rides'), ride);
+  alert('Ride requested successfully!');
+};
+
 // ---------------- REQUEST VIA WHATSAPP ----------------
 btnRequestWhatsapp.onclick = async () => {
   if (!window._estimate) return alert('Get estimate first.');
@@ -366,7 +396,7 @@ btnRequestWhatsapp.onclick = async () => {
     return parseFloat(m[0].replace(',', '.'));
   })();
 
-  // --- Format distance and fare for readability ---
+  // --- Format distance and fare ---
   const fmtCurrency = (v) => {
     if (v == null || Number.isNaN(v)) return (typeof rawFare === 'string' && rawFare) || 'N/A';
     try {
@@ -384,7 +414,6 @@ btnRequestWhatsapp.onclick = async () => {
   const fareDisplay = fmtCurrency(fareVal);
   const driverName = selectedDriver?.name || 'Not assigned';
 
-  // --- Optional: include JSON summary of estimate ---
   const estimateJson = window._estimate ? `\n\nEstimate details:\n${JSON.stringify(window._estimate, null, 2)}` : '';
 
   // --- Replace with your WhatsApp number (with country code) ---
@@ -400,6 +429,22 @@ btnRequestWhatsapp.onclick = async () => {
   );
 
   window.open(`https://wa.me/${adminNumber}?text=${message}`, '_blank');
+
+  // Also save the same request in Firestore
+  const ride = {
+    pickup: window._estimate.pickupText,
+    destination: window._estimate.destText,
+    estimate: window._estimate,
+    requestedAt: new Date().toISOString(),
+    status: 'requested',
+    customerName: name,
+    customerPhone: phone,
+    browserId,
+    driverId: selectedDriver?.id || null,
+    driverName: selectedDriver?.name || null
+  };
+  await addDoc(collection(db, 'rides'), ride);
+  alert('Ride requested successfully and sent via WhatsApp!');
 };
 
 // --- Driver selection modal ---
