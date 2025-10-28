@@ -109,24 +109,57 @@
     </div>
   </div>
 
-  <!-- vehicle modal -->
-  <div class="modal fade" id="vehicleModal" tabindex="-1"><div class="modal-dialog"><form id="vehicleForm" class="modal-content"><div class="modal-header"><h5 class="modal-title">Add / Edit Vehicle</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
-    <input id="vehicleId" type="hidden">
-    <label class="small-muted">Name</label>
-    <input id="vName" class="mb-2 form-control">
-    <label class="small-muted">Type</label>
-    <select id="vType" class="mb-2 form-select"><option value="car">Car</option><option value="premium">Premium</option><option value="bike">Bike</option><option value="van">Van</option></select>
-    <label class="small-muted">Status</label>
-    <select id="vStatus" class="mb-2 form-select"><option value="available">available</option><option value="busy">busy</option><option value="offline">offline</option></select>
-    <label class="small-muted">Image (URL or upload)</label>
-    <input id="vImageUrl" class="mb-2 form-control" placeholder="https://...">
-    <input id="vImageFile" type="file" class="mb-2 form-control">
-    <label class="small-muted">Latitude (optional)</label>
-    <input id="vLat" class="mb-2 form-control" placeholder="-1.286">
-    <label class="small-muted">Longitude (optional)</label>
-    <input id="vLng" class="mb-2 form-control" placeholder="36.817">
-  </div><div class="modal-footer"><button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button><button class="btn btn-primary" type="submit">Save</button></div></form></div></div>
+ <!-- vehicle modal -->
+<div class="modal fade" id="vehicleModal" tabindex="-1">
+  <div class="modal-dialog">
+    <form id="vehicleForm" class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Add / Edit Vehicle</h5>
+        <button class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
 
+      <div class="modal-body">
+        <input id="vehicleId" type="hidden">
+
+        <label class="small-muted">Name</label>
+        <input id="vName" class="mb-2 form-control">
+
+        <label class="small-muted">Type</label>
+        <select id="vType" class="mb-2 form-select">
+          <option value="car">Car</option>
+          <option value="premium">Premium</option>
+          <option value="bike">Bike</option>
+          <option value="van">Van</option>
+        </select>
+
+        <label class="small-muted">Status</label>
+        <select id="vStatus" class="mb-2 form-select">
+          <option value="available">available</option>
+          <option value="busy">busy</option>
+          <option value="offline">offline</option>
+        </select>
+
+        <label class="small-muted">Phone Number (for Call button)</label>
+        <input id="vPhone" class="mb-2 form-control" placeholder="e.g. 0712345678">
+
+        <label class="small-muted">Image (URL or upload)</label>
+        <input id="vImageUrl" class="mb-2 form-control" placeholder="https://...">
+        <input id="vImageFile" type="file" class="mb-2 form-control">
+
+        <label class="small-muted">Latitude (optional)</label>
+        <input id="vLat" class="mb-2 form-control" placeholder="-1.286">
+
+        <label class="small-muted">Longitude (optional)</label>
+        <input id="vLng" class="mb-2 form-control" placeholder="36.817">
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-primary" type="submit">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
   <!-- assign modal (pick vehicle to assign) -->
   <div class="modal fade" id="assignModal" tabindex="-1"><div class="modal-dialog"><form id="assignForm" class="modal-content"><div class="modal-header"><h5 class="modal-title">Assign Vehicle</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
     <input id="assignRideId" type="hidden">
@@ -588,49 +621,71 @@ document.addEventListener("click", (e) => {
       await addDoc(collection(db,'vehicles'), { name, type: quickType.value, image: img, status: 'available', createdAt: new Date().toISOString() });
       quickName.value=''; quickImage.value='';
     };
+  // --- Vehicle modal (Add/Edit) ---
+btnAddVehicle.onclick = () => {
+  document.getElementById('vehicleForm').reset();
+  document.getElementById('vehicleId').value = '';
+  vehicleModal.show();
+};
 
-    // --- Vehicle modal (Add/Edit) ---
-    btnAddVehicle.onclick = ()=> {
-      document.getElementById('vehicleForm').reset();
-      document.getElementById('vehicleId').value = '';
-      vehicleModal.show();
-    };
+vehicleForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
 
-    vehicleForm.addEventListener('submit', async (e)=>{
-      e.preventDefault();
-      const id = document.getElementById('vehicleId').value || null;
-      const name = document.getElementById('vName').value.trim();
-      const type = document.getElementById('vType').value;
-      const status = document.getElementById('vStatus').value;
-      const url = document.getElementById('vImageUrl').value.trim();
-      const file = document.getElementById('vImageFile').files[0];
-      const lat = parseFloat(document.getElementById('vLat').value) || null;
-      const lng = parseFloat(document.getElementById('vLng').value) || null;
-      let imageURL = url || null;
-      if (file){
-        const ref = sRef(storage, `vehicles/${Date.now()}_${file.name}`);
-        await uploadBytes(ref, file);
-        imageURL = await getDownloadURL(ref);
-      }
-      const data = { name, type, status, image: imageURL, updatedAt: new Date().toISOString() };
-      if (typeof lat === 'number' && typeof lng === 'number'){ data.latitude = lat; data.longitude = lng; }
-      if (id) await updateDoc(doc(db,'vehicles', id), data); else await addDoc(collection(db,'vehicles'), data);
-      vehicleModal.hide();
-    });
+  const id = document.getElementById('vehicleId').value || null;
+  const name = document.getElementById('vName').value.trim();
+  const type = document.getElementById('vType').value;
+  const status = document.getElementById('vStatus').value;
+  const phone = document.getElementById('vPhone').value.trim(); // <-- new field
+  const url = document.getElementById('vImageUrl').value.trim();
+  const file = document.getElementById('vImageFile').files[0];
+  const lat = parseFloat(document.getElementById('vLat').value) || null;
+  const lng = parseFloat(document.getElementById('vLng').value) || null;
 
-    async function editVehicle(id){
-      const ds = await getDoc(doc(db,'vehicles', id));
-      if (!ds.exists()) return alert('Not found');
-      const d = ds.data();
-      document.getElementById('vehicleId').value = id;
-      document.getElementById('vName').value = d.name || '';
-      document.getElementById('vType').value = d.type || 'car';
-      document.getElementById('vStatus').value = d.status || 'available';
-      document.getElementById('vImageUrl').value = d.image || '';
-      document.getElementById('vLat').value = d.latitude || '';
-      document.getElementById('vLng').value = d.longitude || '';
-      vehicleModal.show();
-    }
+  let imageURL = url || null;
+  if (file) {
+    const ref = sRef(storage, `vehicles/${Date.now()}_${file.name}`);
+    await uploadBytes(ref, file);
+    imageURL = await getDownloadURL(ref);
+  }
+
+  const data = {
+    name,
+    type,
+    status,
+    phone, // <-- include phone
+    image: imageURL,
+    updatedAt: new Date().toISOString()
+  };
+
+  if (typeof lat === 'number' && typeof lng === 'number') {
+    data.latitude = lat;
+    data.longitude = lng;
+  }
+
+  if (id) {
+    await updateDoc(doc(db, 'vehicles', id), data);
+  } else {
+    await addDoc(collection(db, 'vehicles'), data);
+  }
+
+  vehicleModal.hide();
+});
+
+async function editVehicle(id) {
+  const ds = await getDoc(doc(db, 'vehicles', id));
+  if (!ds.exists()) return alert('Not found');
+  const d = ds.data();
+
+  document.getElementById('vehicleId').value = id;
+  document.getElementById('vName').value = d.name || '';
+  document.getElementById('vType').value = d.type || 'car';
+  document.getElementById('vStatus').value = d.status || 'available';
+  document.getElementById('vPhone').value = d.phone || ''; // <-- load phone
+  document.getElementById('vImageUrl').value = d.image || '';
+  document.getElementById('vLat').value = d.latitude || '';
+  document.getElementById('vLng').value = d.longitude || '';
+  vehicleModal.show();
+}
 
     // teleport
     async function teleportVehicle(id){
