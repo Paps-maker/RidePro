@@ -150,6 +150,32 @@
     </div>
   </div>
 </div>
+<!-- Rate Driver Modal -->
+<div class="modal fade" id="rateModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="text-dark modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Rate Driver</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p id="rateModalDriverName" class="fw-semibold"></p>
+        <select id="rateModalSelect" class="form-select">
+          <option value="1">1 ⭐</option>
+          <option value="2">2 ⭐</option>
+          <option value="3">3 ⭐</option>
+          <option value="4">4 ⭐</option>
+          <option value="5">5 ⭐</option>
+        </select>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-primary" id="rateModalSubmit">Submit</button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
   <!-- Receipt modal -->
   <div class="modal fade" id="receiptModal" tabindex="-1"><div class="modal-dialog modal-md"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Receipt</h5><button class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body" id="receiptBody"></div><div class="modal-footer"><button id="printReceipt" class="btn-outline-light btn btn-sm">Print</button><button id="downloadReceipt" class="btn btn-gold btn btn-sm">Download PDF</button></div></div></div></div>
 
@@ -167,10 +193,12 @@
   // ---------------- Firebase imports ----------------
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
   import { getAuth } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-  import {
-    getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, getDocs, query, where, orderBy
-  } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+ import {
+    getFirestore, collection, addDoc, doc, updateDoc, onSnapshot, getDocs, query, where, orderBy, increment
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
   import { getStorage } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+  
 
   // ---------------- CONFIG ----------------
   const firebaseConfig = {
@@ -301,7 +329,7 @@
     });
   }
 
-  // ---------------- VEHICLES (Realtime) ----------------
+// ---------------- VEHICLES (Realtime) ----------------
 onSnapshot(collection(db, 'vehicles'), snap => {
   const list = [];
   snap.forEach(d => list.push({ id: d.id, ...d.data() }));
@@ -309,59 +337,110 @@ onSnapshot(collection(db, 'vehicles'), snap => {
   plotVehicleMarkers(list);
 });
 
-function renderVehiclesGrid(list) {
+async function renderVehiclesGrid(list) {
   vehiclesGrid.innerHTML = '';
-  list
-    .filter(v => ['available', 'busy', 'offline'].includes(v.status || 'available'))
-    .forEach(v => {
-      const col = document.createElement('div');
-      col.className = 'mb-2';
 
-      const img = v.image
-        ? `<img src="${escapeHtml(v.image)}" class="me-2 vehicle-img">`
-        : '';
+  for (const v of list.filter(v => ['available', 'busy', 'offline'].includes(v.status || 'available'))) {
+    const col = document.createElement('div');
+    col.className = 'mb-2';
 
-      const statusTag =
-        v.status === 'available'
-          ? '<span class="status-green">Available</span>'
-          : v.status === 'busy'
-          ? '<span class="status-orange">Busy</span>'
-          : '<span class="status-gray">Offline</span>';
+    const img = v.image
+      ? `<img src="${escapeHtml(v.image)}" class="me-2 vehicle-img">`
+      : '';
 
-      // --- Add Call Button (only if phone exists) ---
-      const callBtn = v.phone
-        ? `<a href="tel:${v.phone}" class="ms-2 btn btn-success btn-sm">
-             <i class="bi bi-telephone"></i> Call
-           </a>`
-        : '';
+    const statusTag =
+      v.status === 'available'
+        ? '<span class="status-green">Available</span>'
+        : v.status === 'busy'
+        ? '<span class="status-orange">Busy</span>'
+        : '<span class="status-gray">Offline</span>';
 
-      col.innerHTML = `
-        <div class="d-flex align-items-center justify-content-between p-2"
-             style="background:rgba(255,255,255,0.02);border-radius:8px">
-          <div class="d-flex align-items-center">
-            ${img}
-            <div>
-              <div class="fw-bold">${escapeHtml(v.name || v.type || 'Vehicle')}</div>
-              <div class="small-muted">${escapeHtml(v.type || '')}</div>
-            </div>
-          </div>
-          <div class="text-end">
-            ${statusTag}
-            <div class="mt-1 muted small">
-              ${
-                typeof v.latitude === 'number' && typeof v.longitude === 'number'
-                  ? 'Live'
-                  : 'No GPS'
-              }
-            </div>
-            ${callBtn}
+    const callBtn = v.phone
+      ? `<a href="tel:${v.phone}" class="ms-2 btn btn-success btn-sm">
+           <i class="bi bi-telephone"></i> Call
+         </a>`
+      : '';
+
+    const avgRating = v.ratingCount ? (v.rating / v.ratingCount).toFixed(1) : 'No ratings';
+    const stars = v.ratingCount ? '⭐'.repeat(Math.round(v.rating / v.ratingCount)) : '☆☆☆☆☆';
+
+    // --- Check if current user has a completed ride with this vehicle ---
+    const q = query(
+      collection(db, 'rides'),
+      where('vehicleId', '==', v.id),
+      where('browserId', '==', browserId),
+      where('status', '==', 'completed')
+    );
+    const ridesSnapshot = await getDocs(q);
+    const showRateBtn = !ridesSnapshot.empty;
+
+    const rateBtn = showRateBtn
+      ? `<button class="mt-1 btn btn-warning btn-sm" onclick="rateDriver('${v.id}', '${escapeHtml(v.name || v.type)}')">
+           ⭐ Rate Driver
+         </button>`
+      : '';
+
+    col.innerHTML = `
+      <div class="d-flex align-items-center justify-content-between p-2"
+           style="background:rgba(255,255,255,0.02);border-radius:8px">
+        <div class="d-flex align-items-center">
+          ${img}
+          <div>
+            <div class="fw-bold">${escapeHtml(v.name || v.type || 'Vehicle')}</div>
+            <div class="small-muted">${escapeHtml(v.type || '')}</div>
+            <div class="text-warning small vehicle-stars" data-driver-id="${v.id}">${stars} (${avgRating})</div>
           </div>
         </div>
-      `;
-      vehiclesGrid.appendChild(col);
-    });
+        <div class="text-end">
+          ${statusTag}
+          <div class="mt-1 muted small">
+            ${typeof v.latitude === 'number' && typeof v.longitude === 'number' ? 'Live' : 'No GPS'}
+          </div>
+          ${callBtn}
+          ${rateBtn}
+        </div>
+      </div>
+    `;
+    vehiclesGrid.appendChild(col);
+  }
 }
 
+// ---------------- Rate Driver using Bootstrap Modal ----------------
+window.rateDriver = function(driverId, driverName) {
+  document.getElementById('rateModalDriverName').textContent = `Rate ${driverName}`;
+  const submitBtn = document.getElementById('rateModalSubmit');
+
+  submitBtn.replaceWith(submitBtn.cloneNode(true)); // remove old handlers
+  const newSubmitBtn = document.getElementById('rateModalSubmit');
+
+  newSubmitBtn.onclick = async () => {
+    const r = parseInt(document.getElementById('rateModalSelect').value);
+    if (isNaN(r) || r < 1 || r > 5) return alert('Invalid rating');
+
+    const driverRef = doc(db, 'vehicles', driverId);
+
+    try {
+      // --- Update Firestore directly ---
+      await updateDoc(driverRef, {
+        rating: increment(r),
+        ratingCount: increment(1)
+      });
+
+      alert(`Thanks for rating ${driverName}! ⭐`);
+
+      // Optional: close modal
+      const modal = bootstrap.Modal.getInstance(document.getElementById('rateModal'));
+      modal.hide();
+    } catch (err) {
+      console.error('Failed to submit rating:', err);
+      alert('Failed to submit rating: ' + err.message);
+    }
+  };
+
+  const modal = new bootstrap.Modal(document.getElementById('rateModal'));
+  modal.show();
+};
+// ---------------- PLOT VEHICLE MARKERS ----------------
 function plotVehicleMarkers(list) {
   const present = new Set(list.map(l => l.id));
   for (const id of Object.keys(vehicleMarkers)) {
@@ -384,6 +463,36 @@ function plotVehicleMarkers(list) {
         );
   });
 }
+
+ // ---------------- REQUEST RIDE (no payment) ----------------
+btnProceedPayment.onclick = async () => {
+  if (!window._estimate) return alert('Get estimate first.');
+  const phone = custPhone.value.trim();
+  const name = custName.value.trim() || 'Guest';
+  if (!/^07\d{8}$/.test(phone)) return alert('Enter valid Kenyan phone.');
+
+  // --- Select driver ---
+  const selectedDriver = await selectDriver();
+  if (!selectedDriver) {
+    if (!confirm('No driver selected. Continue anyway?')) return;
+  }
+
+  const ride = {
+    pickup: window._estimate.pickupText,
+    destination: window._estimate.destText,
+    estimate: window._estimate,
+    requestedAt: new Date().toISOString(),
+    status: 'requested',
+    customerName: name,
+    customerPhone: phone,
+    browserId,
+    driverId: selectedDriver?.id || null,
+    driverName: selectedDriver?.name || null
+  };
+
+  await addDoc(collection(db, 'rides'), ride);
+  alert('Ride requested successfully!');
+};
 
 // ---------------- REQUEST RIDE (no payment) ----------------
 btnProceedPayment.onclick = async () => {
@@ -551,6 +660,7 @@ async function getAvailableDrivers() {
     name: d.data().name || d.data().driverName || d.data().type || 'Driver'
   }));
 }
+
 
   // ---------------- SHOW CUSTOMER’S OWN RIDES ----------------
   onSnapshot(collection(db, 'rides'), snap => {
