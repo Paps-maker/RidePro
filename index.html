@@ -333,36 +333,6 @@
     });
   }
 
- // ---------------- REQUEST RIDE (no payment) ----------------
-btnProceedPayment.onclick = async () => {
-  if (!window._estimate) return alert('Get estimate first.');
-  const phone = custPhone.value.trim();
-  const name = custName.value.trim() || 'Guest';
-  if (!/^07\d{8}$/.test(phone)) return alert('Enter valid Kenyan phone.');
-
-  // --- Select driver ---
-  const selectedDriver = await selectDriver();
-  if (!selectedDriver) {
-    if (!confirm('No driver selected. Continue anyway?')) return;
-  }
-
-  const ride = {
-    pickup: window._estimate.pickupText,
-    destination: window._estimate.destText,
-    estimate: window._estimate,
-    requestedAt: new Date().toISOString(),
-    status: 'requested',
-    customerName: name,
-    customerPhone: phone,
-    browserId,
-    driverId: selectedDriver?.id || null,
-    driverName: selectedDriver?.name || null
-  };
-
-  await addDoc(collection(db, 'rides'), ride);
-  alert('Ride requested successfully!');
-};
-
 // ---------------- REQUEST VIA WHATSAPP ----------------
 btnRequestWhatsapp.onclick = async () => {
   if (!window._estimate) return alert('Get estimate first.');
@@ -376,11 +346,46 @@ btnRequestWhatsapp.onclick = async () => {
     if (!confirm('No driver selected. Continue anyway?')) return;
   }
 
-  const pickup = window._estimate.pickupText;
-  const destination = window._estimate.destText;
-  const distance = window._estimate.distanceText;
-  const fare = window._estimate.fareText || window._estimate.amount || 'N/A';
+  const pickup = window._estimate.pickupText || 'N/A';
+  const destination = window._estimate.destText || 'N/A';
+
+  // --- Extract numeric distance and fare values ---
+  const rawDistance = window._estimate.distance || window._estimate.distanceText || '';
+  const distanceVal = (() => {
+    if (!rawDistance) return null;
+    const m = String(rawDistance).match(/[\d.,]+/);
+    if (!m) return null;
+    return parseFloat(m[0].replace(',', '.'));
+  })();
+
+  const rawFare = window._estimate.fare || window._estimate.amount || window._estimate.fareText || '';
+  const fareVal = (() => {
+    if (!rawFare) return null;
+    const m = String(rawFare).match(/[\d.,]+/);
+    if (!m) return null;
+    return parseFloat(m[0].replace(',', '.'));
+  })();
+
+  // --- Format distance and fare for readability ---
+  const fmtCurrency = (v) => {
+    if (v == null || Number.isNaN(v)) return (typeof rawFare === 'string' && rawFare) || 'N/A';
+    try {
+      return new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(v);
+    } catch (e) {
+      return `KSh ${v}`;
+    }
+  };
+  const fmtDistance = (v) => {
+    if (v == null || Number.isNaN(v)) return (typeof rawDistance === 'string' && rawDistance) || 'N/A';
+    return `${v.toFixed(2)} km`;
+  };
+
+  const distanceDisplay = fmtDistance(distanceVal);
+  const fareDisplay = fmtCurrency(fareVal);
   const driverName = selectedDriver?.name || 'Not assigned';
+
+  // --- Optional: include JSON summary of estimate ---
+  const estimateJson = window._estimate ? `\n\nEstimate details:\n${JSON.stringify(window._estimate, null, 2)}` : '';
 
   // --- Replace with your WhatsApp number (with country code) ---
   const adminNumber = '254790427109';
@@ -389,8 +394,9 @@ btnRequestWhatsapp.onclick = async () => {
     `🚖 *New Ride Request via RidePro*\n\n` +
     `👤 Name: ${name}\n📞 Phone: ${phone}\n` +
     `📍 Pickup: ${pickup}\n🏁 Destination: ${destination}\n` +
-    `📏 Distance: ${distance}\n💰 Estimated Fare: ${fare}\n🚗 Driver: ${driverName}\n\n` +
-    `🕒 Requested At: ${new Date().toLocaleString()}`
+    `📏 Distance: ${distanceDisplay}\n💰 Estimated Fare: ${fareDisplay}\n🚗 Driver: ${driverName}\n\n` +
+    `🕒 Requested At: ${new Date().toLocaleString()}` +
+    estimateJson
   );
 
   window.open(`https://wa.me/${adminNumber}?text=${message}`, '_blank');
