@@ -302,36 +302,88 @@
   }
 
   // ---------------- VEHICLES (Realtime) ----------------
-   onSnapshot(collection(db, 'vehicles'), snap => {
-    const list = []; snap.forEach(d => list.push({ id: d.id, ...d.data() }));
-    renderVehiclesGrid(list); plotVehicleMarkers(list);
-  });
+onSnapshot(collection(db, 'vehicles'), snap => {
+  const list = [];
+  snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+  renderVehiclesGrid(list);
+  plotVehicleMarkers(list);
+});
 
-  function renderVehiclesGrid(list){
-    vehiclesGrid.innerHTML = '';
-    list.filter(v => ['available','busy','offline'].includes(v.status||'available')).forEach(v=>{
-      const col = document.createElement('div'); col.className='mb-2';
-      const img = v.image?`<img src="${escapeHtml(v.image)}" class="me-2 vehicle-img">`:'';
-      const statusTag = v.status==='available'?'<span class="status-green">Available</span>':
-                        v.status==='busy'?'<span class="status-orange">Busy</span>':'<span class="status-gray">Offline</span>';
-      col.innerHTML = `<div class="d-flex align-items-center justify-content-between p-2" style="background:rgba(255,255,255,0.02);border-radius:8px">
-        <div class="d-flex align-items-center">${img}<div><div class="fw-bold">${escapeHtml(v.name||v.type||'Vehicle')}</div><div class="small-muted">${escapeHtml(v.type||'')}</div></div></div>
-        <div class="text-end">${statusTag}<div class="mt-1 muted small">${(typeof v.latitude==='number'&&typeof v.longitude==='number')?'Live':'No GPS'}</div></div>
-      </div>`;
+function renderVehiclesGrid(list) {
+  vehiclesGrid.innerHTML = '';
+  list
+    .filter(v => ['available', 'busy', 'offline'].includes(v.status || 'available'))
+    .forEach(v => {
+      const col = document.createElement('div');
+      col.className = 'mb-2';
+
+      const img = v.image
+        ? `<img src="${escapeHtml(v.image)}" class="me-2 vehicle-img">`
+        : '';
+
+      const statusTag =
+        v.status === 'available'
+          ? '<span class="status-green">Available</span>'
+          : v.status === 'busy'
+          ? '<span class="status-orange">Busy</span>'
+          : '<span class="status-gray">Offline</span>';
+
+      // --- Add Call Button (only if phone exists) ---
+      const callBtn = v.phone
+        ? `<a href="tel:${v.phone}" class="ms-2 btn btn-success btn-sm">
+             <i class="bi bi-telephone"></i> Call
+           </a>`
+        : '';
+
+      col.innerHTML = `
+        <div class="d-flex align-items-center justify-content-between p-2"
+             style="background:rgba(255,255,255,0.02);border-radius:8px">
+          <div class="d-flex align-items-center">
+            ${img}
+            <div>
+              <div class="fw-bold">${escapeHtml(v.name || v.type || 'Vehicle')}</div>
+              <div class="small-muted">${escapeHtml(v.type || '')}</div>
+            </div>
+          </div>
+          <div class="text-end">
+            ${statusTag}
+            <div class="mt-1 muted small">
+              ${
+                typeof v.latitude === 'number' && typeof v.longitude === 'number'
+                  ? 'Live'
+                  : 'No GPS'
+              }
+            </div>
+            ${callBtn}
+          </div>
+        </div>
+      `;
       vehiclesGrid.appendChild(col);
     });
-  }
+}
 
-  function plotVehicleMarkers(list){
-    const present = new Set(list.map(l=>l.id));
-    for(const id of Object.keys(vehicleMarkers)){ if(!present.has(id)) { map.removeLayer(vehicleMarkers[id]); delete vehicleMarkers[id]; } }
-    list.forEach(v=>{
-      if(typeof v.latitude!=='number'||typeof v.longitude!=='number') return;
-      const pos = [v.latitude, v.longitude];
-      if(vehicleMarkers[v.id]) vehicleMarkers[v.id].setLatLng(pos);
-      else vehicleMarkers[v.id] = L.marker(pos).addTo(map).bindPopup(`<strong>${escapeHtml(v.name||v.type)}</strong><br>${escapeHtml(v.type||'')}<br>${escapeHtml(v.status||'')}`);
-    });
+function plotVehicleMarkers(list) {
+  const present = new Set(list.map(l => l.id));
+  for (const id of Object.keys(vehicleMarkers)) {
+    if (!present.has(id)) {
+      map.removeLayer(vehicleMarkers[id]);
+      delete vehicleMarkers[id];
+    }
   }
+  list.forEach(v => {
+    if (typeof v.latitude !== 'number' || typeof v.longitude !== 'number') return;
+    const pos = [v.latitude, v.longitude];
+    if (vehicleMarkers[v.id]) vehicleMarkers[v.id].setLatLng(pos);
+    else
+      vehicleMarkers[v.id] = L.marker(pos)
+        .addTo(map)
+        .bindPopup(
+          `<strong>${escapeHtml(v.name || v.type)}</strong><br>${escapeHtml(
+            v.type || ''
+          )}<br>${escapeHtml(v.status || '')}`
+        );
+  });
+}
 
 // ---------------- REQUEST RIDE (no payment) ----------------
 btnProceedPayment.onclick = async () => {
