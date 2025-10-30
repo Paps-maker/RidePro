@@ -1,3 +1,4 @@
+
 <!doctype html>
 <html lang="en">
 <head>
@@ -477,11 +478,7 @@
 </div>
 
 <script type="module">
-  // --- DYNAMIC USER DETAILS & GREETING ---
-  const userEmailEl = document.getElementById('userEmail');
-  const userAvatarEl = document.getElementById('userAvatar');
-  const userGreetingEl = document.getElementById('userGreeting');
-  const custNameEl = document.getElementById('custName');
+ 
 
   // --- Persistent Browser ID ---
  
@@ -516,20 +513,7 @@
   // --- Initial load ---
   updateUserUI();
 
-  // --- Watch for name changes ---
-  if (custNameEl) {
-    custNameEl.addEventListener("input", () => {
-      localStorage.setItem("custName", custNameEl.value);
-      updateUserUI();
-    });
-  }
 
-  // --- Persist name from localStorage ---
-  const savedName = localStorage.getItem("custName");
-  if (savedName && custNameEl) {
-    custNameEl.value = savedName;
-    updateUserUI();
-  }
 
   // --- Auto refresh greeting every 5 minutes ---
   setInterval(() => {
@@ -1225,7 +1209,10 @@ window.rateDriver = function(driverId, driverName) {
         }
       }, 300);
     }
-
+  // persist user name
+    const userEmailEl = document.getElementById('userEmail'), userAvatar = document.getElementById('userAvatar'), userAvatarSmall = document.getElementById('userAvatarSmall'), userNameShort = document.getElementById('userNameShort');
+    const savedName = localStorage.getItem('custName'); if(savedName) { custNameInput.value = savedName; userEmailEl.textContent = savedName; userAvatar.textContent = savedName.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase(); if(userAvatarSmall) userAvatarSmall.textContent = userAvatar.textContent; if(userNameShort) userNameShort.textContent = savedName; }
+    custNameInput.addEventListener('input', ()=> { localStorage.setItem('custName', custNameInput.value); const n = custNameInput.value.trim(); userEmailEl.textContent = n || 'Guest'; userAvatar.textContent = n ? n.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase() : 'GU'; if(userAvatarSmall) userAvatarSmall.textContent = userAvatar.textContent; if(userNameShort) userNameShort.textContent = n || 'Guest'; });
   </script>
 </body>
 </html>
